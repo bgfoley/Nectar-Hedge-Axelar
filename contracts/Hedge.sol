@@ -46,7 +46,7 @@ contract Hedge is ReentrancyGuard{
     // Hedge LTV
     uint256 public hedgeLtv;
     // Fraxlend collateral balance
-    uint256 private collateralBalance;
+    uint256 public collateralBalance;
 
     // Events    
     event Deposit(address indexed user, uint256 ethAmount, uint256 value);
