@@ -1,41 +1,89 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+//////===============================================================//////
+//////===============================================================//////
+//////          /  |  / / ________________ _______________           //////
+//////         /   | / //  __//  _//_  __// __  //  __  //           //////
+//////        / /| |/ //  __// /__  / /  / /_/ //  /_/ //            //////
+//////_______/ / |   / \___/ \___/ / /  /_/ /_//__/ \_ \\____________//////
+//////==================/////  AXELAR RELAY  /////===================//////
+//////===============================================================//////
+
 import { AxelarExecutable } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/executable/AxelarExecutable.sol';
 import { AxelarExpressExecutable } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/express/AxelarExpressExecutable.sol';
 import { IAxelarGateway } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGateway.sol';
 import { IERC20 } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IERC20.sol';
 import { IAxelarGasService } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGasService.sol';
+import { IPositionManager } from './contracts.IPostionManager.sol';
 // import { IPerpsV2ExchangeRate, IPyth } from 'contracts/interfaces/Synthetix/IPerpsV2ExchangeRate.sol';
-// // Should be able to bypass Kwenta through IPerpsV2 import { IAcounts } from 'Hedge/src/contracts/interfaces/IAccount.sol;';
+// May be able to bypass Kwenta through IPerpsV2 import { IAcounts } from 'Hedge/src/contracts/interfaces/IAccount.sol;';
 
-// Should be able to bypass Kwenta through IPerpsV2 import { IFactory } from "src/interfaces/IFactory.sol";
+/// @notice the Axelar Relay facilitates cross chain transfers and message passing for Nectar products
+contract AxelarRelay is AxelarExpressExecutable {
 
+//////==================//////////////////////////===================//////
+                       ////      STATE       ////
+//////================//////////////////////////=====================//////   
 
-contract PositionManager is AxelarExpressExecutable {
+    // Gas service interface
     IAxelarGasService public immutable gasService;
-    address public immutable hedge; 
-    // we'll change this to onlyStrategy so other strategies can use PositionManager
-    // which will require further mods, but for now let's keep it simple
+    // Position Manager Interface
+    IPositionManager public positionManager;
+    // Hedge Address
+    address public immutable hedge;
+    // Position Manager Address
+    address public immutable positionManagerAddress; 
+
+//////==================//////////////////////////===================//////
+                       ////      EVENTS      ////
+//////================//////////////////////////=====================//////   
+/// @dev need to add events
+
+
+//////==================//////////////////////////===================//////
+                       ////     MODIFIERS    ////
+//////================//////////////////////////=====================//////   
+
+    // we can change this to onlyStrategy so other strategies can use AxelarRelay
+    // which will require further mods to codebase, but for now let's keep it simple
     modifier onlyHedge {
          require(msg.sender == hedge, "Hedge only");
         _;
     }
-    // Needs for cross chain calls
+    // Masy need for cross chain calls
     modifier onlySelf() {
         require(msg.sender == address(this), 'Function must be called by the same contract only');
         _;
     }
-    
+
+//////==================//////////////////////////===================//////
+                       ////    CONSTRUCTOR   ////
+//////================//////////////////////////=====================//////   
+
     constructor(
         address gateway_, 
         address gasReceiver_,
-        address _hedge) 
+        address _hedge,
+        address _positionManagerAddress) 
         AxelarExpressExecutable(gateway_) {
-        gasService = IAxelarGasService(gasReceiver_),
+        gasService = IAxelarGasService(gasReceiver_);
         hedge = _hedge;
+        positionManagerAddress = _positionManagerAddress;
+        positionManager = IPositionManager(_positionManagerAddress);
+        
     }
 
+//////==================//////////////////////////===================//////
+                       //////     READ     //////
+//////================//////////////////////////=====================//////       
+/// @dev let's see what we need here
+
+//////==================//////////////////////////===================//////
+                       //////     WRITE    //////
+//////================//////////////////////////=====================//////   
+
+    // @notice 
     function addCollateralPlaceShort(
         // string values passed by Hedge
         string memory destinationChain,
@@ -102,11 +150,24 @@ contract PositionManager is AxelarExpressExecutable {
         // modify margin 3x short
 
         // get account info
+
         
                  {
             IERC20(tokenAddress).transfer(recipients[i], sentAmount);
         }
     }
+    /// @notice internal override of Axelar Express Executable
+    /// to complete the removeCollateral function
+    function _execute(
+        string calldata,
+        string calldata,
+        bytes calldata payload,
+    )   internal override {
+        // decode payload
+        uint256 totalEth = abi.decode(payload, collateralBalance);
+        /// @dev insert logic for removing collateral and adjusting short
+    }
+
 }
 
 /*

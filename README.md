@@ -28,3 +28,7 @@ Perp DEX Integration: This repository serves as a foundation for integrating var
 Order Execution Logic: For each perp dex integration, the order execution logic will need to be implemented differently, tailored to the specific platform. However, the project will continue to utilize Axelar for streamlined cross-chain communication, enabling consistency in parameter passing.
 
 Future Integration: The long-term vision includes the possibility of swapping out Fraxlend components with AAVE, allowing the integration of alternate yield-bearing tokens such as StETH and rETH as collateral.
+
+## Hedge Flow Chart
+![Flow Chart](./NectarContractFlowChart.drawio.png)
+
