@@ -164,7 +164,8 @@ contract AxelarRelay is AxelarExpressExecutable {
         bytes calldata payload,
     )   internal override {
         // decode payload
-        uint256 totalEth = abi.decode(payload, collateralBalance);
+        /// @dev let's call totalEth position size or something else
+        uint256 totalEth = abi.decode(payload, collateralBalance, toTarget);
         /// @dev insert logic for removing collateral and adjusting short
     }
 
