@@ -14,8 +14,11 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IERC20Metadata } from '@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
 import { ReentrancyGuard } from '@openzeppelin/contracts/security/ReentrancyGuard.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import { IAxelarRelay } from 'contracts/AxelarRelay.sol';
-import { IFraxlendPair } from 'node_modules/fraxlend/src/contracts/interfaces/IFraxlendPair.sol';
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { Strings } from '@openzeppelin/contracts/utils/Strings.sol';
+//import { IFraxlendPair } from '@fraxfinance/fraxlend/src/contracts/interfaces/IFraxlendPair.sol';
+import { IFraxlendPair } from 'contracts/interfaces/IFraxlendPair.sol';
+import { IAxelarRelay } from 'contracts/test/AxelarRelay.sol';
 
 /* Hedge is a product created by the geniuses at Nectar Development Co. 
 Trust us, sir. This is good. */
@@ -23,8 +26,8 @@ Trust us, sir. This is good. */
 /// @notice Hedge is Nectar's one-click strategy that takes ether based LSDs 
 /// and establishes a 1/1 delta-neutral hedge between fraxlend and a perp dex
 contract Hedge is ReentrancyGuard {
-    using AddressToString for address;
-    using SafeMath for uint256;
+    using Strings for address;
+    using SafeCast for uint256;
     using SafeERC20 for IERC20;
 
 //////==================//////////////////////////===================//////
@@ -68,6 +71,8 @@ contract Hedge is ReentrancyGuard {
     uint256 public hedgeLtv;
     // Hedge's collateral balance on fraxlend
     uint256 public collateralBalance;
+    // sfrxEth exchange rate
+    uint256 public sfrxEthExchangeRate;
 
 //////==================//////////////////////////===================//////
                        ////      EVENTS      ////
@@ -119,6 +124,7 @@ contract Hedge is ReentrancyGuard {
         symbol = getSymbol(_fraxToken);                           
         collateralBalance = fraxlend.userColateralBalance(hedge);
         hedgeLtv = getHedgeLtv();
+        sfrxEthExchangeRate = uint256(fraxlend.exchangeRateInfo().exchangeRate);
         // Preapprove contracts for transferFrom
         frax.approve(axelarRelay, type(uint256).max);
         frax.approve(fraxlendPair, type(uint256).max);
@@ -134,16 +140,13 @@ contract Hedge is ReentrancyGuard {
     /// @dev review & revise math - using highExchange rate to stay on the safe side
     /// but let's explore more accurate options
     /// @return hedge contract's loan to value ratio
-    function getHedgeLtv() public view returns (uint256) {
-        uint256 exchangeRate = fraxlend.exchangeRateInfo.highExchangeRate;
+    function getHedgeLtv() public view returns (uint256) {AVB       FDR
         uint256 borrowAmount = fraxlend.toBorrowAmount.userBorrowShares(hedge);
-        uint256 hedgeLTV = borrowAmount
-            .mul(exchangeRate
-            .div(BigInt(1e18))
-            .mul(1e5)
-            .div(collateralBalance);
-        return hedgeLtv;
-    }
+        uint256 ltvNumerator = borrowAmount * sfrxEthExchangeRate * 1e5;
+        uint256 ltvDenominator = collateralBalance * BigInt(1e18);
+        uint256 hedgeLTV = ltvNumerator / ltvDenominator;
+    return hedgeLTV;
+}
 
 //////==================//////////////////////////===================//////
                        //////     WRITE    //////
@@ -168,13 +171,13 @@ contract Hedge is ReentrancyGuard {
         require(amount > 0, "Deposit amount must be greater than zero");
         UserData storage user = userInfo[msg.sender];
         sfrxEth.safeTransferFrom(msg.sender, hedge, amount);
-        uint256 newCollateralBalance = fraxlend.userColateralBalance(hedge).add(amount);
+        uint256 newCollateralBalance = fraxlend.userColateralBalance(hedge) + amount;
         fraxlend.addCollateral(amount, hedge);
         _balanceHedge(newCollateralBalance);
-        uint256 _value = fraxlend.exchangeRateInfo.highExchangeRate.mul(amount);
-        user.amount = user.amount.add(amount);
-        user.value = user.value.add(_value);
-        emit Deposit(msg.sender, sfrxEthAmount, _value);
+        uint256 _value = fraxlend.exchangeRateInfo.exchangeRate * amount);
+        user.sfrxEthAmount += amount;
+        user.value += _value;
+        emit Deposit(msg.sender, amount, _value);
     }
     /// @notice the '''withdraw''' function returns sfrxEth to the user
     /// @param amount is the amount of sfrxEth
@@ -195,13 +198,13 @@ contract Hedge is ReentrancyGuard {
         require(amount > 0, "Withdraw amount must be greater than zero");
         UserData storage user = userInfo[msg.sender];
         require(user.ethAmount >= amount, "Insufficient balance for withdrawal");
-        uint256 newCollateralBalance = fraxlend.getUserSnapshot.ColateralBalance(hedge).sub(amount);
+        uint256 newCollateralBalance = fraxlend.userCollateralBalance(hedge) - amount;
         _balanceHedge(newCollateralBalance);
-        fraxlend.removeCollateral(uint256 amount, hedge);
+        fraxlend.removeCollateral(amount, hedge);
         sfrxEth.safeTransferFrom(hedge, msg.sender, amount);
-        uint256 _value = fraxlend.exchangeRateInfo.highExchangeRate.mul(amount);
-        user.amount = user.amount.sub(amount);
-        user.value = user.value.sub(_value);
+        uint256 _value = fraxlend.exchangeRateInfo.exchangeRate * amount;
+        user.amount -= amount;
+        user.value -= _value;
         emit Withdrawal(msg.sender, amount, _value);
     }
 
@@ -224,43 +227,44 @@ contract Hedge is ReentrancyGuard {
     // Solve for amount of frax to borrow or repay to fraxlend
     // If > 1:3 remove collateral from perp account
     // If < 1:3 borrow from fraxlend and add collateral to perp and place short
+
     function _balanceHedge(uint256 _collateralBalance) internal {
         uint256 borrowShares = fraxlend.userBorrowShares(hedge);
         uint256 borrowAmount = fraxlend.toBorrowAmount(borrowShares, true, true);
-        uint256 exchangeRate = fraxlend.exchangeRateInfo.highExchangeRate;
-        uint256 _hedgeLtv = borrowAmount
-            .mul(exchangeRate
-            .div(BigInt(1e18))
-            .mul(1e5)
-            .div(_collateralBalance);    
-        } 
-        uint256 targetBorrowAmount = _collateralBalance
-            .mul(BigInt(1e18))
-            .mul(_hedgeLtv)
-            .div(exchangeRate)
-            .div(1e5);
+        uint256 sfrxEthExchangeRate = fraxlend.exchangeRateInfo.exchangeRate;
+    
+        // Calculate _hedgeLtv
+        uint256 ltvNumerator = borrowAmount * 1e5;
+        uint256 ltvDenominator = ltvNumerator / 1e18;
+        uint256 _hedgeLtv = ltvDenominator * 1e5 / _collateralBalance;
+
+        // Calculate targetBorrowAmount
+        uint256 targetBorrowNumerator = _collateralBalance * 1e18;
+        uint256 targetBorrowDenominator = targetBorrowNumerator * _hedgeLtv;
+        uint256 targetBorrowAmount = targetBorrowDenominator / sfrxEthExchangeRate / 1e5;
+
         if (_hedgeLtv > (1 * 1e5) / 3) {
-        uint256 toTarget = targetBorrowAmount
-        .sub((1 * 1e5) / 3);
-        axelarRelay.removeCollateral(
-            destinationChain, 
-            destinationAddress, 
-            _collateralBalance,  
-            toTarget);  
-        }
+            uint256 toTarget = targetBorrowAmount - ((1 * 1e5) / 3);
+            axelarRelay.removeCollateral(
+                destinationChain,
+                destinationAddress,
+                _collateralBalance,
+                toTarget
+            );
+        } 
         else 
-        {
-        uint256 toTarget = ((1 * 1e5) / 3)
-        .sub(targetBorrowAmount);
-        fraxlend.borrowAsset(toTarget);
-        axelarRelay.addCollateralPlaceShort(
-            destinationChain, 
-            destinationAddress,
-            collateralBalance, 
-            symbol,
-            toTarget);
+            {
+            uint256 toTarget = ((1 * 1e5) / 3) - targetBorrowAmount;
+            fraxlend.borrowAsset(toTarget);
+            axelarRelay.addCollateralPlaceShort(
+                destinationChain,
+                destinationAddress,
+                collateralBalance,
+                symbol,
+                toTarget
+            );
         }
-    }   
+    }
 
     /// @notice '''balanceHedge''' is an external function to trigger _balanceHedge
     /// @dev calls _balanceHedge and passes current collateralBalance as argument
