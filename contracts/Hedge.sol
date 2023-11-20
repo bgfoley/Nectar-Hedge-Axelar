@@ -16,7 +16,6 @@ import { ReentrancyGuard } from '@openzeppelin/contracts/security/ReentrancyGuar
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Strings } from '@openzeppelin/contracts/utils/Strings.sol';
-//import { IFraxlendPair } from '@fraxfinance/fraxlend/src/contracts/interfaces/IFraxlendPair.sol';
 import { IFraxlendPair } from 'contracts/interfaces/IFraxlendPair.sol';
 import { IAxelarRelay } from 'contracts/test/AxelarRelay.sol';
 
@@ -24,7 +23,7 @@ import { IAxelarRelay } from 'contracts/test/AxelarRelay.sol';
 Trust us, sir. This is good. */
 
 /// @notice Hedge is Nectar's one-click strategy that takes ether based LSDs 
-/// and establishes a 1/1 delta-neutral hedge between fraxlend and a perp dex
+/// and establishes a delta-neutral postion between long and short
 contract Hedge is ReentrancyGuard {
     using Strings for address;
     using SafeCast for uint256;
@@ -45,6 +44,8 @@ contract Hedge is ReentrancyGuard {
     mapping(address => UserData) public userInfo; 
 
     address payable public hedge;
+    // Nectar Position Manager address
+    address public immutable positionManager;
     // Fraxlend interface
     IFraxlendPair public fraxlend; 
     // Position Manager Interface
@@ -106,13 +107,14 @@ contract Hedge is ReentrancyGuard {
     /// @param _axelarRelayAddress, @dev use deployment/await script
     /// @param _destinationChain for use by Axelar
     constructor(
-        address _fraxlendPair,       // (Mainnet) 0x78bB3aEC3d855431bd9289fD98dA13F9ebB7ef15
-        address _fraxToken,          // (Mainnet) 0x853d955aCEf822Db058eb8505911ED77F175b99e
-        address _sfrxEthToken,       // (Mainnet) 0xac3E018457B222d93114458476f3E3416Abbe38F
-        address _axelarRelayAddress, // 
-        string memory _destinationChain,
-        string memory _symbol,
-        string memory _destinationAddress)       // Use "Optimism" or "Arbittrum" (string) 
+        address _fraxlendPair,          // (Mainnet) 0x78bB3aEC3d855431bd9289fD98dA13F9ebB7ef15
+        address _fraxToken,             // (Mainnet) 0x853d955aCEf822Db058eb8505911ED77F175b99e
+        address _sfrxEthToken,          // (Mainnet) 0xac3E018457B222d93114458476f3E3416Abbe38F
+        address _axelarRelayAddress,    
+        address _positionManager,       
+        string memory _destinationChain // Use "Optimism" or "Arbittrum" (string) 
+//        string memory _symbol,
+        )       
         {
         hedge = payable(msg.sender);
         axelarRelayAddress = _axelarRelayAddress;       
@@ -124,14 +126,14 @@ contract Hedge is ReentrancyGuard {
         frax = IERC20(fraxToken);
         sfrxEth = IERC20(sfrxEthToken);
         destinationChain = _destinationChain;
-        destinationAddress = _destinationAddress;
-        symbol = _symbol;                           
+        destinationAddress = _postionManager.toHexString();
+        symbol = IERC20Metadata(_fraxToken).symbol();                         
         collateralBalance = fraxlend.userCollateralBalance(hedge);
         hedgeLtv = getHedgeLtv();
-        // Preapprove contracts for transferFrom
-//        frax.approve(axelarRelay, type(uint256).max);
-//        frax.approve(fraxlendPair, type(uint256).max);
-//        sfrxEth.approve(fraxlendPair, type(uint256).max);
+        // Preapprove max allowance for contracts
+        IERC20(_fraxToken).approve(_axelarRelayAddress, type(uint256).max);
+        IERC20(_fraxToken).approve(_fraxlendPair, type(uint256).max);
+        IERC20(_sfrxEthToken).approve(fraxlendPair, type(uint256).max);
     }
        
 //////==================//////////////////////////===================//////
@@ -153,34 +155,21 @@ contract Hedge is ReentrancyGuard {
         uint256 hedgeLTV = ltvNumerator / ltvDenominator;
         return hedgeLTV;
     }
-/*
-    // Turn address to string for Axelar 
-    function addressToString(address _address) external pure returns (string memory) {
-        return _address.toString();
-    }
 
-    // Get the symbol of a token for Axelar
-    function getTokenSymbol(address tokenAddress) external view returns (string memory) {
-        // Create an instance of the IERC20Metadata interface
-        IERC20Metadata token = IERC20Metadata(tokenAddress);
-
-        // Call the symbol function to retrieve the token symbol
-        return token.symbol();
-    }    
-*/
 //////==================//////////////////////////===================//////
                        //////     WRITE    //////
 //////================//////////////////////////=====================//////   
 
     /// @notice the '''deposit''' function takes user's sfrxEth and opens delta-neutral hedge
     /// @param amount of sfrxEth deposit
-    /// so @dev consider whether or not we should store this variable
+    /// @dev consider whether or not we should store this variable
+    /// Pros: calculate ether value delta for each user
     /// @notice value == the amount available for withdrawal
     // Retrieve the user's existing transaction data
     // transfer yield bearing tokens from user to contract
     // Calculate what Hedge's sfrxEth balance will be after adding collatteral
     // add new collateral and pass account address for Hedge
-    // Internal function Balance Hedge is called
+    // Internal function balanceHedge is called
     // Use the exchange rate to get the value of deposit
     // Update the amount by adding the deposit amount
     // Update the value of user's position
@@ -201,11 +190,12 @@ contract Hedge is ReentrancyGuard {
     }
     /// @notice the '''withdraw''' function returns sfrxEth to the user
     /// @param amount is the amount of sfrxEth
-    /// @notice value == the amount available for withdrawal  
+    /// @notice value == the amount available for withdrawal
+    /// @dev need to update logic to withdraw Hedge value, not deposit amount  
     // Check amount is greater than zero
     // Retrieve the user's existing transaction data
     // Check that user has sufficient sfrxEth balance
-    // Calculate what Hedge's sfrxEth balance will be after removing collateral
+    // Calculate Hedge's sfrxEth balance after removing collateral
     // Internal function Balance Hedge is called
     // Use the exchange rate to get the value of the withdrawal
     // Remove collateral from Fraxlend, receipient is hedge
