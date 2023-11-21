@@ -266,19 +266,6 @@ contract Hedge is ReentrancyGuard {
     /// externally by anyone willing to pay gas -- 
     /// @dev maybe a chron bot to trigger this every 15 min or so
     /// @param _collateralBalance is Hedge's fraxlend account sfrxEth balance 
-    // Get number of outstanding borrowShares
-    // Convert borrowShares to borrowAmount, (include arguments Round up = true, previewInterest, true
-    // Get the exchange rate from the fraxlend pair
-    // Check if the function is called internally or externally
-    // If so, use the newCollateralBalance
-    // Calculate LTV
-    // Else, use the collateralBalance from fraxlendPair
-    // Get LTV
-    // Get the correct loan size frax needed to acheive - 1:3 LTV
-    // Solve for amount of frax to borrow or repay to fraxlend
-    // If > 1:3 remove collateral from perp account
-    // If < 1:3 borrow from fraxlend and add collateral to perp and place short
-
     function _balanceHedge(uint256 _collateralBalance) internal {
         
         // Get exchange rate
