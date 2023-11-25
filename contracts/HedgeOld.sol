@@ -27,24 +27,38 @@ contract Hedge is ReentrancyGuard {
     using SafeCast for uint256;
     using SafeERC20 for IERC20;
 
-
 //////==================//////////////////////////===================//////
                        ////      STATE       ////
 //////================//////////////////////////=====================//////   
+    
+    /// User accounting
 
-
-    // User Accounting
-    /// Store Eth deposited & value of Hedge position 
+    // Store Eth deposited & depositShares of Hedge position 
     struct UserData {
-    uint256 sfrxEthAmount;       // Total sfrxEth deposited by user
-    uint256 value;               // The value of their hedge position
+    uint256 sfrxEthAmount;       // total sfrxEth deposited by user
+    uint256 depositShares;       // value of user's hedge position
     }
-
 
     // Store user addresses against user balance data
     mapping(address => UserData) public userData; 
 
+    /// Contract accounting
+
+    // Hedge's collateral balance on fraxlend
+    uint256 public collateralBalance = 0;
+
+    // Hedge's total value locked
+    uint256 public totalValueLocked = 0;
+
+    // Hedge LTV
+    uint256 public hedgeLtv;
+   
+    // For function balanceHedge
+    uint256 public constant desiredHedgeLtv = 333333333333333333;
+    
+    // Hedge's address
     address payable public hedge;
+
     // Nectar Position Manager address
     address public immutable positionManager;
     // Fraxlend interface
@@ -69,37 +83,25 @@ contract Hedge is ReentrancyGuard {
     string public destinationAddress;
     // loan token symbol
     string public symbol;
-    // Hedge LTV
-    uint256 public hedgeLtv;
-    // Hedge's collateral balance on fraxlend
-    uint256 public collateralBalance;
-    // For function balanceHedge
-    uint256 public constant desiredHedgeLtv = 333333333333333333;
-    // Hedge's total value locked
-    uint256 public totalValueLocked = 0;
-
+    
 
 //////==================//////////////////////////===================//////
                        ////      EVENTS      ////
 //////================//////////////////////////=====================////// 
 
-    
-    event Deposit(address indexed user, uint256 sfrxEthAmount, uint256 value, uint256 totalValueLocked);
-    event Withdrawal(address indexed user, uint256 sfrxEthAmount, uint256 value, uint256 totalValueLocked);
+    event Deposit(address indexed user, uint256 sfrxEthAmount, uint256 depositShares, uint256 collateralBalance, uint256 totalValueLocked);
+    event Withdrawal(address indexed user, uint256 sfrxEthAmount, uint256 depositShares, uint256 collateralBalance, uint256 totalValueLocked);
     event AssetRepayed(uint256 indexed amount);
     event HedgeBalanced(uint256 totalValueLocked);
 
-    
 //////==================//////////////////////////===================//////
                        ////     MODIFIERS    ////
 //////================//////////////////////////=====================//////   
-
 
     modifier onlyAxelarRelay {
         require(msg.sender == axelarRelayAddress, "Axelar Relay contract only");
         _;
     }
-
 
 //////==================//////////////////////////===================//////
                        ////    CONSTRUCTOR   ////
@@ -136,7 +138,6 @@ contract Hedge is ReentrancyGuard {
         destinationChain = _destinationChain;
         destinationAddress = _positionManager.toHexString();
         symbol = IERC20Metadata(_fraxToken).symbol();                         
-        collateralBalance = fraxlend.userCollateralBalance(hedge);
         hedgeLtv = getHedgeLtv();
         // Preapprove max allowance for contracts
         IERC20(_fraxToken).approve(_axelarRelayAddress, type(uint256).max);
@@ -144,17 +145,14 @@ contract Hedge is ReentrancyGuard {
         IERC20(_sfrxEthToken).approve(fraxlendPair, type(uint256).max);
     }
        
-
 //////==================//////////////////////////===================//////
                        //////     READ     //////
 //////================//////////////////////////=====================//////   
-
 
     /// @notice '''getHedgeLtv''' gets the loan health of Hedge's fraxlend account
     /// @dev revise math 
     /// @return hedge contract's loan to value ratio
     function getHedgeLtv() public view returns (uint256) {
-       
         // get exchange rate
         (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
         uint256 sfrxEthExchangeRate = uint256(exchangeRate);
@@ -172,92 +170,23 @@ contract Hedge is ReentrancyGuard {
         return hedgeLTV;
     }
 
-    
     /// @notice '''getSfrxEthBalance''' gets available sfrxEth for account
     /// @param _account is address of the account holder
     function getSfrxEthBalance(address _account) public view returns (uint256) {
-        
         // Get the user data
         UserData storage user = userData[_account];
         
         // Calculate user's share of totalValueLocked
-        uint256 userShares = user.value / totalValueLocked; 
+        uint256 userShares = user.depositShares / totalValueLocked; 
         uint256 _sfrxEthBalance = userShares * collateralBalance;
         
         // Return sfrxEthBalance available for withdrawal
         return _sfrxEthBalance;
     }
 
-
 //////==================//////////////////////////===================//////
                        //////     WRITE    //////
-//////================//////////////////////////=====================//////   
-
-
-    /// @notice the '''deposit''' function takes user's sfrxEth and opens delta-neutral hedge
-    /// @param amount of sfrxEth deposit
-    /// @dev consider whether or not we should store this variable
-    /// Pros: calculate ether value delta for each user
-    /// @notice value == the amount available for withdrawal
-    function deposit(uint256 amount) external nonReentrant {
-        
-        // Check for valid deposit amount, get user's data
-        require(amount > 0, "Deposit amount must be greater than zero");
-        UserData storage user = userData[msg.sender];
-       
-        // transfer tokens from the user to Hedge, add to Fraxlend
-        sfrxEth.safeTransferFrom(msg.sender, hedge, amount);
-        fraxlend.addCollateral(amount, hedge);
-        
-        // Calculate new collateralBalance, then balance Hedge
-        uint256 newCollateralBalance = fraxlend.userCollateralBalance(hedge) + amount;
-        _balanceHedge(newCollateralBalance);
-        
-        // Get the exchange rate
-        (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
-        uint256 sfrxEthExchangeRate = uint256(exchangeRate);
-        uint256 _value = sfrxEthExchangeRate * amount;
-       
-        // Update UserData & TVL
-        user.sfrxEthAmount += amount;
-        user.value += _value;
-        totalValueLocked += _value;
-
-        // Emit deposit event
-        emit Deposit(msg.sender, amount, _value, totalValueLocked);
-    }
-
-
-    /// @notice the '''withdraw''' function returns sfrxEth to the user
-    /// @param amount is the amount of sfrxEth
-    /// @notice value == the amount available for withdrawal
-    /// @dev need to update logic to withdraw Hedge value, not deposit amount  
-    function withdraw(uint256 amount) external nonReentrant {
-        
-        // Check for valid withdrawal amount, retrieve the user's data
-        require(amount > 0, "Withdraw amount must be greater than zero");
-        uint256 _sfrxEthBalance = getSfrxEthBalance(msg.sender);
-        UserData storage user = userData[msg.sender];
-        require(_sfrxEthBalance >= amount, "Insufficient balance for withdrawal");
-        
-        // Calculate new collateralBalance, then balance Hedge
-        uint256 newCollateralBalance = fraxlend.userCollateralBalance(hedge) - amount;
-        _balanceHedge(newCollateralBalance);
-        
-        // Remove collateral from Fraxlend, transfer from Hedge to msg.sender
-        fraxlend.removeCollateral(amount, hedge);
-        sfrxEth.safeTransferFrom(hedge, msg.sender, amount);
-        
-        // Update UserData & TVL
-        uint256 _withdrawAmount = amount / _sfrxEthBalance;
-        uint256 _value = user.value * _withdrawAmount;
-        user.sfrxEthAmount -= amount;
-        user.value -= _value;
-        totalValueLocked -= _value;
-
-        // Emit withdrawal event
-        emit Withdrawal(msg.sender, amount, _value, totalValueLocked);
-    }
+//////================//////////////////////////=====================//////
 
     /// @notice the '''_balanceHedge''' function maintains the delta neutral position of the Hedge
     /// by 1) check for a loan to Value of 1:3 in Fraxlend, then 2) call addCollateralPlaceShort 
@@ -267,7 +196,6 @@ contract Hedge is ReentrancyGuard {
     /// @dev maybe a chron bot to trigger this every 15 min or so
     /// @param _collateralBalance is Hedge's fraxlend account sfrxEth balance 
     function _balanceHedge(uint256 _collateralBalance) internal {
-        
         // Get exchange rate
         (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
         uint256 sfrxEthExchangeRate = uint256(exchangeRate);
@@ -276,7 +204,7 @@ contract Hedge is ReentrancyGuard {
         uint256 borrowShares = fraxlend.userBorrowShares(hedge);
         uint256 borrowAmount = fraxlend.toBorrowAmount(borrowShares, true);
     
-        // Calculate Hedge's Loan to Value ratio
+        // Calculate Hedge's loan to value ratio
         uint256 ltvNumerator = borrowAmount * 1e5;
         uint256 ltvDenominator = ltvNumerator / 1e18;
         uint256 _hedgeLtv = ltvDenominator * 1e5 / _collateralBalance;
@@ -321,9 +249,86 @@ contract Hedge is ReentrancyGuard {
         _balanceHedge(collateralBalance);
     }
 
+    function _deposit(address _sender, uint256 _amount) internal {
+        // Get the exchange rate between sfrxEth and frax, calculate depositShares 
+        (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
+        uint256 sfrxEthExchangeRate = uint256(exchangeRate);
+        uint256 _depositShares = sfrxEthExchangeRate * _amount;
+       
+        // Update UserData
+        UserData storage user = userData[_sender];
+        user.sfrxEthAmount += _amount;
+        user.depositShares += _depositShares;
+
+        // Update collateralBalance
+        collateralBalance += _amount;
+        
+        // Update TVL
+        totalValueLocked += _depositShares;
+
+        // Interactions
+        if (_sender != address(this)) {
+
+        // Transfer tokens from the user to Hedge 
+        sfrxEth.safeTransferFrom(_sender, hedge, _amount);
+
+        // Add to Fraxlend
+        fraxlend.addCollateral(_amount, hedge);
+        
+        // Balance hedge
+        _balanceHedge(collateralBalance);
+        }
+
+         // Emit deposit event
+        emit Deposit(_sender, _amount, _depositShares, totalValueLocked);
+    }
+
+    /// @notice the '''deposit''' function takes user's sfrxEth and opens delta-neutral hedge
+    /// @param _amount of sfrxEth deposit
+    /// @notice depositShares == the amount available for withdrawal
+    function deposit(uint256 _amount) external nonReentrant {
+        // Check for valid deposit amount, get user's data
+        require(_amount > 0, "Deposit amount must be greater than zero");
+        
+        _deposit((msg.sender), _amount);
+    }
+
+    /// @notice the '''withdraw''' function returns sfrxEth to the user
+    /// @param _amount is the amount of sfrxEth
+    /// @notice depositShares == the amount available for withdrawal
+    function withdraw(uint256 _amount) external nonReentrant {
+        // Check for valid withdrawal amount 
+        require(_amount > 0, "Withdraw amount must be greater than zero");
+        
+        // Retrieve the user's data
+        uint256 _sfrxEthBalance = getSfrxEthBalance(msg.sender);
+        UserData storage user = userData[msg.sender];
+        require(_sfrxEthBalance >= _amount, "Insufficient balance for withdrawal");
+        
+        // Remove collateral from Fraxlend, transfer from Hedge to msg.sender
+        fraxlend.removeCollateral(_amount, hedge);
+        sfrxEth.safeTransferFrom(hedge, msg.sender, _amount);
+    
+        // Update UserData 
+        uint256 _withdrawAmount = _amount / _sfrxEthBalance;
+        uint256 _depositShares = user.depositShares * _withdrawAmount;
+        user.sfrxEthAmount -= _amount;
+        user.depositShares -= _depositShares;
+        
+        // Update TVL
+        totalValueLocked -= _depositShares;
+        
+        // Calculate new collateralBalance, then balance Hedge
+        uint256 newCollateralBalance = fraxlend.userCollateralBalance(hedge) - _amount;
+        _balanceHedge(newCollateralBalance);
+        
+        // Emit withdrawal event
+        emit Withdrawal(msg.sender, _amount, _depositShares, totalValueLocked);
+    }
+
     /// @notice '''_repayAsset''' is the completion of balanceHedge function
     /// @param amount is the amount  
-    function _repayAsset(uint256 amount) public onlyAxelarRelay {
+    function _repayAsset(uint256 amount) external onlyAxelarRelay {
         uint256 _amountAssetShares =  fraxlend.toAssetShares(amount, true); 
         fraxlend.repayAsset(_amountAssetShares, hedge);
         emit AssetRepayed(amount);
