@@ -6,6 +6,8 @@
     "hardhat": "^2.19.0"
   },
   "dependencies": {
-    "fraxlend": "github:FraxFinance/fraxlend"
+    "@openzeppelin/contracts": "^5.0.0",
+    "fraxlend": "github:FraxFinance/fraxlend",
+    "hardhat-docgen": "^1.3.0"
   }
 }

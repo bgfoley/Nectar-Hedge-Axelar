@@ -1,51 +1,31 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.20;
 
 contract PositionManager {
-    
-    function addCollateral(uint256 _amount) external;
+    // Event to log success and the argument value
+    event OperationSuccess(uint256 value);
 
-    function removeCollateral(uint256 _amount) external;
+    function addCollateral(uint256 _amount) external {
+        // Add collateral logic here
+        // ...
 
-    function balanceShort(uint256 positionSize) external;
-    // Function to remove collateral
-    function removeCollateral(
-        string memory destinationChain,
-        string memory destinationAddress,
-        uint256 collateralBalance,
-        uint256 toTarget
-    ) external {
-        // Perform logic here
-        // For demonstration, print the values
-        emit RemovalSuccess(destinationChain, destinationAddress, collateralBalance, toTarget);
+        // Emit success event with the argument value
+        emit OperationSuccess(_amount);
     }
 
-    // Function to add collateral and place a short
-    function addCollateralPlaceShort(
-        string memory destinationChain,
-        string memory destinationAddress,
-        uint256 collateralBalance,
-        string memory symbol,
-        uint256 toTarget
-    ) external {
-        // Perform logic here
-        // For demonstration, print the values
-        emit AdditionSuccess(destinationChain, destinationAddress, collateralBalance, symbol, toTarget);
+    function removeCollateral(uint256 _amount) external {
+        // Remove collateral logic here
+        // ...
+
+        // Emit success event with the argument value
+        emit OperationSuccess(_amount);
     }
 
-    // Events to signal success and log arguments
-    event RemovalSuccess(
-        string destinationChain,
-        string destinationAddress,
-        uint256 collateralBalance,
-        uint256 toTarget
-    );
+    function balanceShort(uint256 positionSize) external {
+        // Balance short logic here
+        // ...
 
-    event AdditionSuccess(
-        string destinationChain,
-        string destinationAddress,
-        uint256 collateralBalance,
-        string symbol,
-        uint256 toTarget
-    );
+        // Emit success event with the argument value
+        emit OperationSuccess(positionSize);
+    }
 }

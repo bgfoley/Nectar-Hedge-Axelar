@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: ISC
-pragma solidity >=0.8.19;
+pragma solidity >=0.8.20;
 
 interface IFraxlendPair {
     function CIRCUIT_BREAKER_ADDRESS() external view returns (address);

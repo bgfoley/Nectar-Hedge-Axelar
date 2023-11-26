@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity >=0.8.20;
 
 //////===============================================================//////
 //////===============================================================//////
@@ -12,12 +12,12 @@ pragma solidity ^0.8.0;
 
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IERC20Metadata } from '@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
-import { ReentrancyGuard } from '@openzeppelin/contracts/security/ReentrancyGuard.sol';
+import { ReentrancyGuard } from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
 import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import { Strings } from '@openzeppelin/contracts/utils/Strings.sol';
 import { IFraxlendPair } from 'contracts/interfaces/IFraxlendPair.sol';
-import { IAxelarRelay } from 'contracts/test/AxelarRelay.sol';
+import { IAxelarRelay } from 'contracts/interfaces/IAxelarRelay.sol';
 
 // Hedge is a product created by the geniuses at Nectar Development Co.
 
@@ -115,6 +115,7 @@ contract Hedge is ReentrancyGuard {
     /// @param _fraxToken the borrowed token
     /// @param _sfrxEthToken the collateral token
     /// @param _axelarRelayAddress, @dev use deployment/await script
+    /// @param _positionManager manages shorts on perp dex       
     /// @param _destinationChain for use by Axelar
 
     constructor(
@@ -136,6 +137,7 @@ contract Hedge is ReentrancyGuard {
         frax = IERC20(fraxToken);
         sfrxEth = IERC20(sfrxEthToken);
         destinationChain = _destinationChain;
+        positionManager = _positionManager;
         destinationAddress = _positionManager.toHexString();
         symbol = IERC20Metadata(_fraxToken).symbol();                         
         hedgeLtv = getHedgeLtv();
