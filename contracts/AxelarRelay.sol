@@ -136,7 +136,7 @@ contract AxelarRelay is AxelarExpressExecutable {
     }
 
 
-    function removeCollateral(
+    function sellShort(
         
         // string values passed by Hedge
         string memory destinationChain,
@@ -194,7 +194,7 @@ contract AxelarRelay is AxelarExpressExecutable {
 
 
     /// @notice internal override of Axelar Express Executable
-    /// to complete the removeCollateral function
+    /// to complete the sellShort function
     function _execute(
         string calldata,
         string calldata,
@@ -205,7 +205,7 @@ contract AxelarRelay is AxelarExpressExecutable {
         (uint256 positionSize, uint256 collateralAmount) = abi.decode(payload, (uint256, uint256));
         
         //Remove collateral from short position
-        positionManager.removeCollateral(collateralAmount);
+        positionManager.sellShort(collateralAmount);
 
         // Balance short position
         positionManager.balanceShort(positionSize);

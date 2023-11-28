@@ -14,7 +14,7 @@ import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IERC20Metadata } from '@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
 import { ReentrancyGuard } from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import { SafeERC20 } from '@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol';
-import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import { SafeCast } from '@openzeppelin/contracts/utils/math/SafeCast.sol';
 import { Strings } from '@openzeppelin/contracts/utils/Strings.sol';
 import { IFraxlendPair } from 'contracts/interfaces/IFraxlendPair.sol';
 import { IAxelarRelay } from 'contracts/interfaces/IAxelarRelay.sol';
@@ -204,10 +204,10 @@ contract Hedge is ReentrancyGuard {
         uint256 targetBorrowAmount = (collateralBalance * sfrxEthExchangeRate) / (3 * 1e18);
 
 
-        // If loan size is too large, remove collateral from the short position and repay loan
+        // If loan size is too large, call Position Manager to sell shorts, buy sfrxEth and add collateral
         if (hedgeLtv > desiredHedgeLtv) {
             uint256 toTarget = totalBorrowed - targetBorrowAmount;
-            axelarRelay.removeCollateral(
+            axelarRelay.sellShort(
                 destinationChain,
                 destinationAddress,
                 collateralBalance,
@@ -260,7 +260,7 @@ contract Hedge is ReentrancyGuard {
         user.sfrxEthAmount += _amount;
         user.depositShares += _depositShares;
 
-        // Update collateralBalance
+        // Update contract collateralBalance
         collateralBalance += _amount;
         
         // Update TVL
@@ -300,14 +300,20 @@ contract Hedge is ReentrancyGuard {
         // Check for valid withdrawal amount 
         require(_amount > 0, "Withdraw amount must be greater than zero");
         
-        // Retrieve the user's data
+        // Calculate user's avaiable sfrxEth
         uint256 _sfrxEthBalance = getSfrxEthBalance(msg.sender);
-        UserData storage user = userData[msg.sender];
         require(_sfrxEthBalance >= _amount, "Insufficient balance for withdrawal");
 
+        // Retrieve the user's data
+        UserData storage user = userData[msg.sender];
+
+        // Get fractional representation of withdrawal amount over sfrxEth available for withdrawal
+        uint256 _withdrawPortion = _amount / _sfrxEthBalance;
+
+        // Calculate withdrawal amount in terms of deposit shares 
+        uint256 _depositSharesToWithdraw = user.depositShares * _withdrawPortion;
+
         // Update UserData 
-        uint256 _withdrawAmount = _amount / _sfrxEthBalance;
-        uint256 _depositShares = user.depositShares * _withdrawAmount;
         user.sfrxEthAmount -= _amount;
         user.depositShares -= _depositShares;
         
@@ -339,5 +345,13 @@ contract Hedge is ReentrancyGuard {
 
         fraxlend.repayAsset(_amountAssetShares, hedge);
         emit AssetRepayed(totalBorrowed);
+    }
+
+    /// @notice '''_addCollateral''' is the completion of balanceHedge function after short is sold
+    /// @param _amount is the amount
+    function _addCollateral(uint256 _amount) external onlyAxelarRelay {
+        // Update collateralBalance
+        collateralBalance += _amount;
+        
     }
 }
