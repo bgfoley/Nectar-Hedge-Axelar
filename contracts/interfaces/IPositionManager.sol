@@ -7,6 +7,8 @@ interface IPositionManager {
 
     function removeCollateral(uint256 _amount) external;
 
+    function sellShort(uint256 _amount) external;
+
     function balanceShort(uint256 positionSize) external;
 
 }

@@ -3,7 +3,7 @@ pragma solidity >=0.8.20;
 
 contract IAxelarRelay {
     // Function to remove collateral
-    function removeCollateral(
+    function sellShort(
         string memory destinationChain,
         string memory destinationAddress,
         uint256 collateralBalance,

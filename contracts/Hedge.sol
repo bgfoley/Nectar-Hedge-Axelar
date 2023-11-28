@@ -315,10 +315,10 @@ contract Hedge is ReentrancyGuard {
 
         // Update UserData 
         user.sfrxEthAmount -= _amount;
-        user.depositShares -= _depositShares;
+        user.depositShares -= _depositSharesToWithdraw;
         
         // Update TVL
-        totalValueLocked -= _depositShares;
+        totalValueLocked -= _depositSharesToWithdraw;
 
         // Update collateralBalance
         collateralBalance -= _amount;
@@ -331,7 +331,7 @@ contract Hedge is ReentrancyGuard {
         _balanceHedge();
         
         // Emit withdrawal event
-        emit Withdrawal(msg.sender, _amount, _depositShares, collateralBalance, totalValueLocked);
+        emit Withdrawal(msg.sender, _amount, _depositSharesToWithdraw, collateralBalance, totalValueLocked);
     }
 
     /// @notice '''_repayAsset''' is the completion of balanceHedge function
