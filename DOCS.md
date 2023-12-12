@@ -39,7 +39,6 @@ mapping(address => UserData) public userData;
 uint256 public collateralBalance;     // Hedge's collateral balance on Fraxlend
 uint256 public totalValueLocked;      // Hedge's total value locked
 uint256 public totalBorrowed;         // Hedge's total borrowed amount
-uint256 public hedgeLtv;              // Hedge's loan-to-value ratio
 uint256 public collateralValue;       // Value of Hedge's collateral balance converted to dollars
 uint256 public targetBorrowAmount;    // Target borrow amount for balancing Hedge
 address public immutable hedge;       // Hedge's address
@@ -153,6 +152,12 @@ function withdraw(uint256 _amount) external nonReentrant
 ### _balanceHedge
 
 Internal function used to maintain the delta-neutral position of the Hedge by adjusting collateral and short positions based on the loan-to-value ratio.
+
+Balance Hedge is the core of Hedge's internal logic that balances the liquidity held in state by asserting certain parameters. First, it checks whether there is enough sfrxEth in the contract's Fraxlend account to cover all user balances. If more is needed, a message is sent through Axelar to sell off some of the protocol's short position to buy more sfrxEth and add collateral.
+
+Second, it check the loan size relative to the collateral value. If it is greater than 1:3, the loan needs to be repaid and, so it calls the position manager to withdraw collateral from the perp dex and repay the loan from Fraxlend. If the loan is too small, more Frax will be borrowed and sent to the perp dex to add collateral.
+
+The system is set up so that the balance hedge function is called for every deposit or withdrawal, or can be called externally without a deposit or withdrawal, in case some time has passed and the liquidity needs to be balanced.
 
 ```solidity
 function _balanceHedge() public onlyBalancer
