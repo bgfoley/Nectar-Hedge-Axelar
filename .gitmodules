@@ -1,0 +1,3 @@
+[submodule "lib/ERC4626"]
+	path = lib/ERC4626
+	url = https://github.com/Fei-Protocol/ERC4626
