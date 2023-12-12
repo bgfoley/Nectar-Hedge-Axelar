@@ -51,8 +51,8 @@ contract Hedge is ReentrancyGuard {
     uint256 public totalValueLocked = 0;
     // Hedge's total borrowed
     uint256 public totalBorrowed = 0;
-    // Hedge LTV
-    uint256 public hedgeLtv;
+/*      // Hedge LTV
+    uint256 public hedgeLtv; */
     // value of Hedge's collateral balance converted to dollars
     uint256 public collateralValue;
     // For balanceHedge function 

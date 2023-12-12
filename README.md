@@ -63,16 +63,17 @@ Like any good bush, our Hedge requires maintenance to stay in good shape. The sy
 
 - **TVL** - Total Value Locked
 - **Collateral Balance** - Hedge’s total amount of sfrxEth held in Fraxlend as deposit collateral.
-- **Total Collateral Value (TCV)** - Dollar value of Hedge’s collateral holdings on Fraxlend.
-- **Position Size** - The value of the short position on the perp dex.
+- **Collateral Value** - Dollar value of Hedge’s collateral holdings on Fraxlend.
+- **Position Size** - The value of the short position on the perp dex... will always be equal to the Collateral Value.
 - **Total Borrowed** - The total amount borrowed by Hedge from Fraxlend at any given time.
-- **LTV (Loan to Value)** - Ratio of the value of Frax borrowed by Hedge and the value of its Collateral Balance.
 - **Solvency** - Protocols solvency with regard to sfrxEth collateral available to cover the combined total of users’ positions.
-- **Desired LTV** - A benchmark ratio used to preserve a balanced state.
+- **Target Borrow Amount** - Appropriate loan size to maintain a balanced Hedge state.
 
 ...
 
-# Hedge Smart Contract Technical Documentation
+# Contracts
+
+# Hedge
 
 ## Overview
 
@@ -93,6 +94,8 @@ For inquiries about the Hedge smart contract, you can reach out to Nectar Develo
 ## State Variables
 
 ### User-Level Accounting
+
+This is a WIP. User level accounting will be tokenized for production. Instead of writing these balances to storage, we'll mint erc721s for each user position that will include the epoch of their deposit. When shorts are placed, state of epochs will be updated and necUSD will be mintable by user.
 
 ```solidity
 struct UserData {
@@ -266,6 +269,8 @@ function getSfrxEthBalance(address _account) public view returns (uint256)
 ## Conclusion 
 
 The Hedge smart contract implements a delta-neutral strategy, managing collateralized and borrowed assets through the Fraxlend protocol. Users can deposit and withdraw sfrxEth, while the contract internally balances its position through the _balanceHedge function. The contract interacts with the Axelar Relay and Fraxlend protocols for cross-chain functionality and lending operations, respectively. Developers and users interested in interacting with the Hedge smart contract should refer to this documentation for a comprehensive understanding of its structure and functionality.
+
+# AxelarRelay
 
 
 
