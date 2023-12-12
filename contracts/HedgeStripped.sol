@@ -10,6 +10,7 @@ pragma solidity >=0.8.20;
 //////=================//////////HEDGE///////////====================//////
 //////===============================================================//////
 
+import ( ERC220 ) from '@openzeppelin/contracts/token/ERC20.ERC20.sol';
 import { IERC20 } from '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import { IERC20Metadata } from '@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol';
 import { ReentrancyGuard } from '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
@@ -22,7 +23,7 @@ import { IAxelarRelay } from 'contracts/interfaces/IAxelarRelay.sol';
 // Hedge is a product created by the geniuses at Nectar Development Co.
 
 /// @notice Hedge is a one-click delta neutral strategy 
-contract Hedge is ReentrancyGuard {
+contract Hedge is ERC20, ReentrancyGuard {
     using Strings for address;
     using SafeCast for uint256;
     using SafeERC20 for IERC20;
@@ -31,9 +32,8 @@ contract Hedge is ReentrancyGuard {
                        ////      STATE       ////
 //////================//////////////////////////=====================//////   
     
-    /// User level accounting
-    /// @dev replace user level accounting with tokens - ie mint erc721s or 20s for user accounting 
-    /// - allow mint of necUSD once short has been placed & confirmed
+    /// User accounting data
+
     // Store Eth deposited & depositShares of Hedge position 
     struct UserData {
     uint256 sfrxEthAmount;       // total sfrxEth deposited by user
@@ -43,7 +43,8 @@ contract Hedge is ReentrancyGuard {
     // Store user addresses against user balance data
     mapping(address => UserData) public userData; 
 
-    /// Contract level accounting
+
+    /// Contract accounting
 
     // Hedge's collateral balance on fraxlend
     uint256 public collateralBalance = 0;
@@ -53,16 +54,13 @@ contract Hedge is ReentrancyGuard {
     uint256 public totalBorrowed = 0;
     // Hedge LTV
     uint256 public hedgeLtv;
-    // value of Hedge's collateral balance converted to dollars
-    uint256 public collateralValue;
-    // For balanceHedge function 
-    uint256 public targetBorrowAmount;
-     // Hedge's address
-    address public immutable hedge;
+   
+    ///@dev suggesting add a highLtv and lowLtv to extend the band at which balancing is required
+    // For function balanceHedge
+    uint256 public constant desiredHedgeLtv = 333333333333333333;
+    
     // Nectar Position Manager address
     address public immutable positionManager;
-    // Balancer / Chron Job address
-    address public immutable balancerAddress;
     // Fraxlend interface
     IFraxlendPair public fraxlend; 
     // Position Manager Interface
@@ -105,12 +103,6 @@ contract Hedge is ReentrancyGuard {
         _;
     }
 
-    /// @dev consider removing this and making balance Hedge public - just have to verify security
-    modifier onlyBalancer {
-        require(msg.sender == balancerAddress, "Balancer contract only");
-        _;
-    }
-
 //////==================//////////////////////////===================//////
                        ////    CONSTRUCTOR   ////
 //////================//////////////////////////=====================//////   
@@ -122,22 +114,19 @@ contract Hedge is ReentrancyGuard {
     /// @param _fraxlendPair for long position
     /// @param _fraxToken the borrowed token
     /// @param _sfrxEthToken the collateral token
-    /// @param _axelarRelayAddress
+    /// @param _axelarRelayAddress, @dev use deployment/await script
     /// @param _positionManager manages shorts on perp dex       
-    /// @param _balancerAddress bot triggers balanceHedge function periodically
     /// @param _destinationChain for use by Axelar
-    
+
     constructor(
         address _fraxlendPair,          // (Mainnet) 0x78bB3aEC3d855431bd9289fD98dA13F9ebB7ef15
         address _fraxToken,             // (Mainnet) 0x853d955aCEf822Db058eb8505911ED77F175b99e
         address _sfrxEthToken,          // (Mainnet) 0xac3E018457B222d93114458476f3E3416Abbe38F
         address _axelarRelayAddress,    
-        address _positionManager,
-        address _balancerAddress,       
+        address _positionManager,       
         string memory _destinationChain // Use "Optimism" or "Arbitrum" (string) 
         )       
         {
-        hedge = payable(msg.sender);
         axelarRelayAddress = _axelarRelayAddress;       
         axelarRelay = IAxelarRelay(axelarRelayAddress);
         fraxlendPair = _fraxlendPair;
@@ -148,47 +137,30 @@ contract Hedge is ReentrancyGuard {
         sfrxEth = IERC20(sfrxEthToken);
         destinationChain = _destinationChain;
         positionManager = _positionManager;
-        balancerAddress = _balancerAddress;
         destinationAddress = _positionManager.toHexString();
-        symbol = IERC20Metadata(_fraxToken).symbol();
-        targetBorrowAmount = (totalValueLocked) / (3 * 1e18);                            
+        symbol = IERC20Metadata(_fraxToken).symbol();                         
         hedgeLtv = getHedgeLtv();
-        collateralValue = getCollateralValue();
-        // Preapprove max allowance for contracts
+   /*     // Preapprove max allowance for contracts
         IERC20(_fraxToken).approve(_axelarRelayAddress, type(uint256).max);
         IERC20(_fraxToken).approve(_fraxlendPair, type(uint256).max);
-        IERC20(_sfrxEthToken).approve(fraxlendPair, type(uint256).max);
+        IERC20(_sfrxEthToken).approve(fraxlendPair, type(uint256).max); 
+        */
     }
        
 //////==================//////////////////////////===================//////
                        //////     READ     //////
 //////================//////////////////////////=====================//////   
 
-    /// @notice '''getCollateralValue''' calculates the value of Hedge's collateral balance
-    /// @return the dollar value of Hedge's collateral in Fraxlend
-    function getCollateralValue() public view returns (uint256) {
-        // get exchange rate
-        (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
-        uint256 sfrxEthExchangeRate = uint256(exchangeRate);
-
-        // calculate value of collateralBalance
-        uint256 _collateralValue = collateralBalance * sfrxEthExchangeRate;
-        _collateralValue = collateralValue;
-
-        // return collateral value
-        return collateralValue;
-    }
-    
-/*    
-    /// @notice '''getHedgeLtv''' gets the loan health of Hedge's fraxlend account
-    /// @return Hedge contract's loan to value ratio
-    function getHedgeLtv() public view returns (uint256) {
+// change function to getDelta - if TVL > supply borrowAsset 
+    /// @notice '''getDelta''' checks the hedge delta since last balance
+    /// @return deltaAmount, and bool for positive or negative
+    function getDelta() public view returns (uint256) {
         // get exchange rate
         (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
         uint256 sfrxEthExchangeRate = uint256(exchangeRate);
         
         // get loan info
-        uint256 borrowShares = fraxlend.userBorrowShares(hedge);
+        uint256 borrowShares = fraxlend.userBorrowShares(address(this));
         uint256 borrowAmount = fraxlend.toBorrowAmount(borrowShares, true);
         
         // calculate loan health
@@ -199,7 +171,7 @@ contract Hedge is ReentrancyGuard {
         // return LTV
         return hedgeLTV;
     }
-*/
+
     /// @notice '''getSfrxEthBalance''' gets available sfrxEth for account
     /// @param _account is address of the account holder
     function getSfrxEthBalance(address _account) public view returns (uint256) {
@@ -223,91 +195,44 @@ contract Hedge is ReentrancyGuard {
     /// It is called internally by deposit and withdraw, or can be called
     /// externally by anyone willing to pay gas -- 
     /// @dev maybe a chron bot to trigger this every 15 min or so
-    function _balanceHedge() public onlyBalancer {
-        // Check Hedge's solvency
-        if (collateralValue >= totalValueLocked) {
-  /*      
-            // Calculate the target loan size for 1:3 Ltv
-            uint256 targetBorrowAmount = (totalValueLocked) / (3 * 1e18);      
-  */      
-            // If loan size is too small, borrow more and send to short position collateral
-            if (targetBorrowAmount > totalBorrowed) {
-                uint256 toTarget = targetBorrowAmount -  totalBorrowed;
-            
-                // Update contract accounting
-                totalBorrowed += toTarget;
+    function _balanceHedge() internal {
+        // Get exchange rate
+        (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
+        uint256 sfrxEthExchangeRate = uint256(exchangeRate);
 
-                // Borrow asset from Fraxlend
-                fraxlend.borrowAsset(toTarget, collateralBalance, hedge);
+        // Calculate the target loan size for 1:3 Ltv
+        uint256 targetBorrowAmount = (collateralBalance * sfrxEthExchangeRate) / (3 * 1e18);
 
-                // Send tokens across chain to add collateral and place short on perp dex
-                axelarRelay.addCollateralPlaceShort(
-                    destinationChain,
-                    destinationAddress,
-                    collateralBalance,
-                    symbol,
-                    toTarget
-                );
-            }    
-       
-            // If loan size is too large, withdraw collateral from perp dex and adjust short position for new positionSize
-            else {
-                uint256 toTarget = totalBorrowed - targetBorrowAmount;
 
-                /// @dev Don't update contract accounting loan is repayed through cross chain transfer
-                // Call Axelar relay to remove collateral from perp dex, update collateralBalance
-                axelarRelay.removeCollateralPlaceShort(
-                    destinationChain,
-                    destinationAddress,
-                    collateralBalance,
-                    toTarget
-                );
-            }
+        // If loan size is too large, call Position Manager to sell shorts, buy sfrxEth and add collateral
+        if (hedgeLtv > desiredHedgeLtv) {
+            uint256 toTarget = totalBorrowed - targetBorrowAmount;
+            axelarRelay.sellShort(
+                destinationChain,
+                destinationAddress,
+                collateralBalance,
+                toTarget
+            );
+        } 
+
+        // If loan size is too small, borrow more and send to short position collateral
+        else 
+            {
+            uint256 toTarget = targetBorrowAmount - totalBorrowed;
+
+            // Update contract accounting
+            totalBorrowed += toTarget;
+
+            // Borrow Frax
+            fraxlend.borrowAsset(toTarget, collateralBalance, address(this));
+            axelarRelay.addCollateralPlaceShort(
+                destinationChain,
+                destinationAddress,
+                collateralBalance,
+                symbol,
+                toTarget
+            );
         }
-
-        // If Hedge is insolvent, adjust loan and call positionManager across chain to sell short
-        else {
-
-            // Calculate amount needed to make Hedge solvent
-            uint256 collateralNeeded = totalValueLocked - collateralValue;
-/*
-            // Calculate the target loan size for 1:3 Ltv
-            uint256 targetBorrowAmount = (totalValueLocked) / (3 * 1e18);      
- */       
-            // Check loan size, if too small, borrow more and send to short position collateral
-            if (targetBorrowAmount > totalBorrowed) {
-                uint256 toTarget = targetBorrowAmount -  totalBorrowed;
-            
-                // Update contract accounting
-                totalBorrowed += toTarget;
-
-                // Borrow asset from Fraxlend
-                fraxlend.borrowAsset(toTarget, collateralBalance, hedge);
-
-                // Call tokens across chain to sell short to make Hedge solvent and add collateral to perp dex
-                axelarRelay.addCollateralSellShort(
-                    destinationChain,
-                    destinationAddress,
-                    collateralBalance,
-                    symbol,
-                    toTarget
-                );
-            }
-            // If loan too large, calculate amount needed to payback
-            else {
-                uint256 toTarget = totalBorrowed - targetBorrowAmount;
-
-                /// @dev Don't update contract accounting loan is repayed through cross chain transfer
-                // Call Axelar relay to remove collateral from perp dex, update collateralBalance
-                axelarRelay.removeCollateralSellShort(
-                    destinationChain,
-                    destinationAddress,
-                    collateralBalance,
-                    toTarget
-                );
-            }
-
-        }    
 
         // Emit HedgeBalanced event
         emit HedgeBalanced(totalBorrowed); 
@@ -345,10 +270,10 @@ contract Hedge is ReentrancyGuard {
         if (_sender != address(this)) {
 
         // Transfer tokens from the user to Hedge 
-        sfrxEth.safeTransferFrom(_sender, hedge, _amount);
+        sfrxEth.safeTransferFrom(_sender, address(this), _amount);
 
         // Add sfrxEth collateral to Fraxlend
-        fraxlend.addCollateral(_amount, hedge);
+        fraxlend.addCollateral(_amount, address(this));
         
         // Balance hedge
         _balanceHedge();
@@ -399,8 +324,8 @@ contract Hedge is ReentrancyGuard {
         collateralBalance -= _amount;
         
         // Remove collateral from Fraxlend, transfer from Hedge to msg.sender
-        fraxlend.removeCollateral(_amount, hedge);
-        sfrxEth.safeTransferFrom(hedge, msg.sender, _amount);
+        fraxlend.removeCollateral(_amount, address(this));
+        sfrxEth.safeTransferFrom(address(this), msg.sender, _amount);
     
         // Balance Hedge
         _balanceHedge();
@@ -418,7 +343,7 @@ contract Hedge is ReentrancyGuard {
         // Convert _amount to assetShares        
         uint256 _amountAssetShares =  fraxlend.toAssetShares(_amount, true); 
 
-        fraxlend.repayAsset(_amountAssetShares, hedge);
+        fraxlend.repayAsset(_amountAssetShares, address(this));
         emit AssetRepayed(totalBorrowed);
     }
 

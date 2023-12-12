@@ -135,8 +135,13 @@ contract AxelarRelay is AxelarExpressExecutable {
         gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, toTarget);
     }
 
+    function addCollateralSellShort(
 
-    function sellShort(
+    );
+
+    function removeCollateralPlaceShort();
+
+    function removeCollateralSellShort(
         
         // string values passed by Hedge
         string memory destinationChain,

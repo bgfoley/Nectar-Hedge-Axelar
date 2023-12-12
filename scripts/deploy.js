@@ -6,28 +6,35 @@
 // global scope, and execute the script.
 const hre = require("hardhat");
 
+const { ethers, upgrades } = require('hardhat');
+
 async function main() {
-  const currentTimestampInSeconds = Math.round(Date.now() / 1000);
-  const unlockTime = currentTimestampInSeconds + 60;
+  // Deploy MyToken
+  const MyToken = await ethers.getContractFactory('MyToken');
+  const myToken = await MyToken.deploy();
+  await myToken.deployed();
+  console.log('MyToken deployed to:', myToken.address);
 
-  const lockedAmount = hre.ethers.parseEther("0.001");
+  // Deploy MyContractA with MyToken's address as an argument
+  const MyContractA = await ethers.getContractFactory('MyContractA');
+  const myContractA = await MyContractA.deploy(myToken.address);
+  await myContractA.deployed();
+  console.log('MyContractA deployed to:', myContractA.address);
 
-  const lock = await hre.ethers.deployContract("Lock", [unlockTime], {
-    value: lockedAmount,
-  });
+  // Deploy MyContractB with MyContractA's address as an argument
+  const MyContractB = await ethers.getContractFactory('MyContractB');
+  const myContractB = await MyContractB.deploy(myContractA.address);
+  await myContractB.deployed();
+  console.log('MyContractB deployed to:', myContractB.address);
 
-  await lock.waitForDeployment();
-
-  console.log(
-    `Lock with ${ethers.formatEther(
-      lockedAmount
-    )}ETH and unlock timestamp ${unlockTime} deployed to ${lock.target}`
-  );
+  // If you want to upgrade a contract, you can use the following pattern
+  // const upgradedMyContractA = await upgrades.upgradeProxy(myContractA.address, MyContractA);
+  // console.log('MyContractA upgraded to:', upgradedMyContractA.address);
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-main().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
