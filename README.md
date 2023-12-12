@@ -30,6 +30,9 @@ Future: The long-term vision includes the possibility of swapping out Fraxlend c
 
 ## Hedge Flow Chart
 
+![Hedge Flow Chart](/Users/ben/Nectar-Hedge-Axelar/NectarContractFlowChart.drawio.png)
+
+
 # Hedgenomics
 
 ## Principle
