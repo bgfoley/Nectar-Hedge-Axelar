@@ -1,4 +1,6 @@
-# Hedge Smart Contract Technical Documentation
+# Contracts
+
+# Hedge
 
 ## Overview
 
@@ -19,6 +21,8 @@ For inquiries about the Hedge smart contract, you can reach out to Nectar Develo
 ## State Variables
 
 ### User-Level Accounting
+
+This is a WIP. User level accounting will be tokenized for production. Instead of writing these balances to storage, we'll mint erc721s for each user position that will include the epoch of their deposit. When shorts are placed, state of epochs will be updated and necUSD will be mintable by user.
 
 ```solidity
 struct UserData {
@@ -193,5 +197,4 @@ function getSfrxEthBalance(address _account) public view returns (uint256)
 
 The Hedge smart contract implements a delta-neutral strategy, managing collateralized and borrowed assets through the Fraxlend protocol. Users can deposit and withdraw sfrxEth, while the contract internally balances its position through the _balanceHedge function. The contract interacts with the Axelar Relay and Fraxlend protocols for cross-chain functionality and lending operations, respectively. Developers and users interested in interacting with the Hedge smart contract should refer to this documentation for a comprehensive understanding of its structure and functionality.
 
-
-
+# AxelarRelay
