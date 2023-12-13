@@ -94,6 +94,7 @@ contract Hedge is ReentrancyGuard {
     event Deposit(address indexed user, uint256 sfrxEthAmount, uint256 depositShares, uint256 collateralBalance, uint256 totalValueLocked);
     event Withdrawal(address indexed user, uint256 sfrxEthAmount, uint256 depositShares, uint256 collateralBalance, uint256 totalValueLocked);
     event AssetRepayed(uint256 totalBorrowed);
+    event CollateralAdded(uint256 collateralBalance);
     event HedgeBalanced(uint256 totalBorrowed);
 
 //////==================//////////////////////////===================//////
@@ -179,27 +180,6 @@ contract Hedge is ReentrancyGuard {
         return collateralValue;
     }
     
-/*    
-    /// @notice '''getHedgeLtv''' gets the loan health of Hedge's fraxlend account
-    /// @return Hedge contract's loan to value ratio
-    function getHedgeLtv() public view returns (uint256) {
-        // get exchange rate
-        (,uint224 exchangeRate) = fraxlend.exchangeRateInfo();
-        uint256 sfrxEthExchangeRate = uint256(exchangeRate);
-        
-        // get loan info
-        uint256 borrowShares = fraxlend.userBorrowShares(hedge);
-        uint256 borrowAmount = fraxlend.toBorrowAmount(borrowShares, true);
-        
-        // calculate loan health
-        uint256 ltvNumerator = borrowAmount;
-        uint256 ltvDenominator = collateralBalance * sfrxEthExchangeRate;
-        uint256 hedgeLTV = ltvNumerator / ltvDenominator;
-        
-        // return LTV
-        return hedgeLTV;
-    }
-*/
     /// @notice '''getSfrxEthBalance''' gets available sfrxEth for account
     /// @param _account is address of the account holder
     function getSfrxEthBalance(address _account) public view returns (uint256) {
@@ -288,7 +268,7 @@ contract Hedge is ReentrancyGuard {
                 axelarRelay.addCollateralSellShort(
                     destinationChain,
                     destinationAddress,
-                    collateralBalance,
+                    collateralNeeded,
                     symbol,
                     toTarget
                 );
@@ -302,7 +282,7 @@ contract Hedge is ReentrancyGuard {
                 axelarRelay.removeCollateralSellShort(
                     destinationChain,
                     destinationAddress,
-                    collateralBalance,
+                    collateralNeeded,
                     toTarget
                 );
             }
@@ -427,6 +407,7 @@ contract Hedge is ReentrancyGuard {
     function _addCollateral(uint256 _amount) external onlyAxelarRelay {
         // Update collateralBalance
         collateralBalance += _amount;
-        
+        fraxlend.addCollateral(_amount, hedge);
+        emit CollateralAdded(_amount);
     }
 }

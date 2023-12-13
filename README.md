@@ -55,7 +55,15 @@ The Hedge smart contracts maintain the flat value of the protocol's liquidity by
 
 ## Balancing the Hedge
 
-Like any good bush, our Hedge requires maintenance to stay in good shape. The system is designed to preserve the stability of its own delta-neutral position in as few moves as possible.
+Like any bush, our Hedge requires maintenance to stay in good shape. The system is designed to preserve the stability of its own delta-neutral position in as few moves as possible.
+
+Balance Hedge is the core of Hedge's internal logic that balances the liquidity held in state by asserting certain parameters. First, it checks whether there is enough sfrxEth in the contract's Fraxlend account to cover all user balances. If more is needed, a message is sent through Axelar to sell off some of the protocol's short position to buy more sfrxEth and add collateral.
+
+Second, it check the loan size relative to the collateral value. If it is greater than 1:3, the loan needs to be repaid and, so it calls the position manager to withdraw collateral from the perp dex and repay the loan from Fraxlend. If the loan is too small, more Frax will be borrowed and sent to the perp dex to add collateral.
+
+The system is set up so that the balance hedge function is called for every deposit or withdrawal, or can be called externally without a deposit or withdrawal, in case some time has passed, prices have changed, and the liquidity needs to be balanced.
+
+
 
 ...
 

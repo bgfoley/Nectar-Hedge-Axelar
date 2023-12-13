@@ -4,7 +4,7 @@
 
 ## Overview
 
-Hedge is a smart contract developed by Nectar Development Co., implementing a one-click delta-neutral strategy. The primary purpose of Hedge is to manage a delta-neutral position using collateralized assets and borrowed assets through the Fraxlend protocol. This documentation provides a technical overview of the contract's structure, state variables, events, modifiers, and functions.
+Hedge is a smart contract developed by Nectar Development Co., implementing a one-click delta-neutral strategy. The primary purpose of Hedge is to manage a delta-neutral position using collateralized yield bearing assets as a long position, and borrowed assets through the Fraxlend protocol to collateralize short positions on perpetuals dex. This documentation provides a technical overview of the contract's structure, state variables, events, modifiers, and functions.
 
 ### Contract Information
 
@@ -22,7 +22,7 @@ For inquiries about the Hedge smart contract, you can reach out to Nectar Develo
 
 ### User-Level Accounting
 
-This is a WIP. User level accounting will be tokenized for production. Instead of writing these balances to storage, we'll mint erc721s for each user position that will include the epoch of their deposit. When shorts are placed, state of epochs will be updated and necUSD will be mintable by user.
+This is a WIP. User level accounting will be tokenized for production. Instead of writing these balances to storage, we'll mint erc721s  (or 20s) for each user position that will include the epoch of their deposit. When shorts are placed, state of epochs will be updated and necUSD will be mintable by user.
 
 ```solidity
 struct UserData {
@@ -153,11 +153,34 @@ function withdraw(uint256 _amount) external nonReentrant
 
 Internal function used to maintain the delta-neutral position of the Hedge by adjusting collateral and short positions based on the loan-to-value ratio.
 
-Balance Hedge is the core of Hedge's internal logic that balances the liquidity held in state by asserting certain parameters. First, it checks whether there is enough sfrxEth in the contract's Fraxlend account to cover all user balances. If more is needed, a message is sent through Axelar to sell off some of the protocol's short position to buy more sfrxEth and add collateral.
+Here's how it works:
 
-Second, it check the loan size relative to the collateral value. If it is greater than 1:3, the loan needs to be repaid and, so it calls the position manager to withdraw collateral from the perp dex and repay the loan from Fraxlend. If the loan is too small, more Frax will be borrowed and sent to the perp dex to add collateral.
+When a user makes a deposit or withdrawal, the contract runs checks to make sure its a valid deposit/withdrawal amount, then updates the state variables for user accounting and contract level accounting (TVL and Collateral Value).
 
-The system is set up so that the balance hedge function is called for every deposit or withdrawal, or can be called externally without a deposit or withdrawal, in case some time has passed and the liquidity needs to be balanced.
+Once the state variables have been updated, the contract run the internal balance Hedge function which runs through its own checks to ensure that it is properly managing and balancing liquidity for the entire system based on the updated state variables.
+
+Here are the checks balanceHedge runs through to make sure the contract level accounting remains balanced:
+
+1) Is the Hedge contract solvent? i.e. Is there enough sfrxEth in Fraxlend to cover TVL (combined value of user deposits)?
+    If collateralValue >= totalValueLocked
+        Hedge is solvent - place shorts based on new position size (collateral balance should be equal to short position size)
+    If collateralValue < totalValueLocked
+        Hedge is insolvent and needs more sfrxEth for Fraxlend - sell shorts and swap profits for sfrxEth, add to Fraxlend
+2) Is the loan size correct?
+    If totalBorrowed >= totalValueLocked * (1/3)
+        Hedge needs to remove collateral from the perp side and payback Frax
+    If totalBorrowed < totalValueLocked * (1/3)
+        Hedge can borrow more Frax and add collateral to the perp side
+
+Based on these checks one of the following commands will be sent to the Position Manager along with the proper amounts:
+    addCollateralPlaceShort
+    addCollateralSellShort
+    removeCollateralPlaceShort
+    removeCollateralSellShort
+
+These methods are combined as seen above to suit our Axelar Relay contract for cross chain GMP. If we configure the entire
+system on one chain, we'll be able to call each method on it's own from Hedge to the Position Manager contract, and the Axelar 
+Relay will be deprecated.
 
 ```solidity
 function _balanceHedge() public onlyBalancer

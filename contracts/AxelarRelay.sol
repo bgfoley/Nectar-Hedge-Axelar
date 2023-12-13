@@ -136,10 +136,61 @@ contract AxelarRelay is AxelarExpressExecutable {
     }
 
     function addCollateralSellShort(
+        // string values passed by Hedge
+        string memory destinationChain,
+        string memory destinationAddress,
+        
+        // collateralBalance - used to balance short
+        uint256 collateralNeeded,
+        string memory symbol,
+        uint256 toTarget
+        ) external payable onlyHedge {
+        require(msg.value > 0, 'Gas payment is required');
+        address tokenAddress = gateway.tokenAddresses(symbol);
+        IERC20(tokenAddress).transferFrom(msg.sender, address(this), toTarget);
+        IERC20(tokenAddress).approve(address(gateway), toTarget);
+        bytes memory payload = abi.encode(collateralNeeded);
+        gasService.payNativeGasForExpressCallWithToken{ value: msg.value }(
+            address(this),
+            destinationChain,
+            destinationAddress,
+            payload,
+            symbol,
+            toTarget,
+            msg.sender
+        );
+        gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, toTarget);
+    }
+
 
     );
 
     function removeCollateralPlaceShort();
+    // string values passed by Hedge
+        string memory destinationChain,
+        string memory destinationAddress,
+        
+        // collateralBalance - used to balance short
+        uint256 collateralBalance,
+        string memory symbol,
+        uint256 toTarget
+        ) external payable onlyHedge {
+        require(msg.value > 0, 'Gas payment is required');
+        address tokenAddress = gateway.tokenAddresses(symbol);
+        IERC20(tokenAddress).transferFrom(msg.sender, address(this), toTarget);
+        IERC20(tokenAddress).approve(address(gateway), toTarget);
+        bytes memory payload = abi.encode(collateralBalance);
+        gasService.payNativeGasForExpressCallWithToken{ value: msg.value }(
+            address(this),
+            destinationChain,
+            destinationAddress,
+            payload,
+            symbol,
+            toTarget,
+            msg.sender
+        );
+        gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, toTarget);
+    }
 
     function removeCollateralSellShort(
         
@@ -148,11 +199,11 @@ contract AxelarRelay is AxelarExpressExecutable {
         string memory destinationAddress,
         
         // to balance short
-        uint256 collateralBalance,
+        uint256 collateralNeeded,
         uint256 toTarget
         ) external payable onlyHedge {
         require(msg.value > 0, 'Gas payment is required');
-        bytes memory payload = abi.encode(collateralBalance, toTarget);
+        bytes memory payload = abi.encode(collateralNeeded, toTarget);
         gasService.payNativeGasForExpressCall{ value: msg.value }(    
             address(this),
             destinationChain,
@@ -199,7 +250,7 @@ contract AxelarRelay is AxelarExpressExecutable {
 
 
     /// @notice internal override of Axelar Express Executable
-    /// to complete the sellShort function
+    /// to complete the sellShort functions
     function _execute(
         string calldata,
         string calldata,
