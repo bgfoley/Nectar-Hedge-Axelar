@@ -162,10 +162,7 @@ contract AxelarRelay is AxelarExpressExecutable {
         gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, toTarget);
     }
 
-
-    );
-
-    function removeCollateralPlaceShort();
+    function removeCollateralPlaceShort(
     // string values passed by Hedge
         string memory destinationChain,
         string memory destinationAddress,
@@ -189,7 +186,7 @@ contract AxelarRelay is AxelarExpressExecutable {
             toTarget,
             msg.sender
         );
-        gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, toTarget);
+        gateway.callContract(destinationChain, destinationAddress, payload);
     }
 
     function removeCollateralSellShort(
@@ -213,18 +210,6 @@ contract AxelarRelay is AxelarExpressExecutable {
         );
         gateway.callContract(destinationChain, destinationAddress, payload);      
     } 
-/*
-    function addCollateralFraxlend(
-        
-        // string values passed by Position Manager
-        string memory destinationChain,
-        string memory destinationAddress,
-        
-        // collateralBalance - used to balance short if prices change during x-chain transfer
-        uint256 calldata ,
-        string memory symbol,
-        uint256 toTarget
-*/
   
     // Override AxelarExecutable to complete transaction
     function _executeWithToken(

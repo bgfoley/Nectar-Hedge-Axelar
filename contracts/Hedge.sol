@@ -51,8 +51,6 @@ contract Hedge is ReentrancyGuard {
     uint256 public totalValueLocked = 0;
     // Hedge's total borrowed
     uint256 public totalBorrowed = 0;
-/*      // Hedge LTV
-    uint256 public hedgeLtv; */
     // value of Hedge's collateral balance converted to dollars
     uint256 public collateralValue;
     // For balanceHedge function 
@@ -123,7 +121,7 @@ contract Hedge is ReentrancyGuard {
     /// @param _fraxlendPair for long position
     /// @param _fraxToken the borrowed token
     /// @param _sfrxEthToken the collateral token
-    /// @param _axelarRelayAddress
+    /// @param _axelarRelayAddress address of Nectar AxelarRelay contract
     /// @param _positionManager manages shorts on perp dex       
     /// @param _balancerAddress bot triggers balanceHedge function periodically
     /// @param _destinationChain for use by Axelar
@@ -153,7 +151,6 @@ contract Hedge is ReentrancyGuard {
         destinationAddress = _positionManager.toHexString();
         symbol = IERC20Metadata(_fraxToken).symbol();
         targetBorrowAmount = (totalValueLocked) / (3 * 1e18);                            
-        hedgeLtv = getHedgeLtv();
         collateralValue = getCollateralValue();
         // Preapprove max allowance for contracts
         IERC20(_fraxToken).approve(_axelarRelayAddress, type(uint256).max);

@@ -187,11 +187,11 @@ function _balanceHedge() public onlyBalancer
 ```
 ### _deposit
 
-Internal function that handles the logic for user deposits, updating user data, collateral, total value locked, and triggering the internal _balanceHedge function.
+Internal function that handles the logic for user deposits, updating user data, collateral, total value locked, and triggering the internal _balanceHedge function. Deposit function is split between internal and external to limit reentrancy attack vectors.
 
 ### _repayAsset
 
-Internal function used to repay assets to Fraxlend from Hedge, updating the total borrowed amount.
+Internal function used to repay assets to Fraxlend from Hedge, updating the total borrowed amount. This will be called by the Position Manager via cross chain messaging (if protocol is split between two blockchains), or directly if on the same network, after the Position Manager has received a call from Hedge to remove collateral from the perp side. 
 
 ```solidity
 function _repayAsset(uint256 _amount) external onlyAxelarRelay
@@ -199,7 +199,7 @@ function _repayAsset(uint256 _amount) external onlyAxelarRelay
 ```
 ### _addCollateral
 
-Internal function used to add collateral to the Hedge's Fraxlend account, updating the collateral balance.
+Internal function used to add collateral to the Hedge's Fraxlend account, updating the collateral balance. This will be called by the Position Manager via cross chain messaging (if protocol is split between two blockchains), or directly if on the same network, after the Position Manager has received a call from Hedge to sell short on the perp side and add collateral to the long position.
 
 ```solidity
 function _addCollateral(uint256 _amount) external onlyAxelarRelay
@@ -226,3 +226,19 @@ function getSfrxEthBalance(address _account) public view returns (uint256)
 The Hedge smart contract implements a delta-neutral strategy, managing collateralized and borrowed assets through the Fraxlend protocol. Users can deposit and withdraw sfrxEth, while the contract internally balances its position through the _balanceHedge function. The contract interacts with the Axelar Relay and Fraxlend protocols for cross-chain functionality and lending operations, respectively. Developers and users interested in interacting with the Hedge smart contract should refer to this documentation for a comprehensive understanding of its structure and functionality.
 
 # AxelarRelay
+
+## Overview
+
+AxelarRelay is a smart contract developed by Nectar Development Co., that facilitates cross chain message passing between Ethereum Mainnet and any EVM based layer 2 (Op or Arbitrum). The primary purpose is to send liquidity from the long position on Mainnet, to the short position on the perp dex (layer 2). 
+
+### Contract Information
+
+- **Name:** AxelarRelay
+- **License:** MIT
+- **Solidity Version:** >=0.8.20
+- **Dependencies:**
+  - OpenZeppelin Contracts v4.3.0 (IERC20, AxelarExecutable, IAxelarGasService, AxelarExpressExecutable, IAxelarGateway, IPositionManager, IHedge)
+
+### Contact Information
+
+For inquiries about the AxelarRelay smart contract, you can reach out to Nectar Development Co.
