@@ -118,6 +118,9 @@ contract Hedge is ReentrancyGuard {
     /// @dev - consider adding current constructor params to a data struct 
     /// that contains parameters for variations on Hedge. For example stEth
     /// and rEth, so that all Hedge products are contained in this contract
+    /// Admin would call addToken, then enter params. Then user dep/with 
+    /// would select a token (0-whatever)
+    /// @notice '''constructor''' is called once on contract deployment
     /// @param _fraxlendPair for long position
     /// @param _fraxToken the borrowed token
     /// @param _sfrxEthToken the collateral token

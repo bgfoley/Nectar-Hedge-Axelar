@@ -242,3 +242,177 @@ AxelarRelay is a smart contract developed by Nectar Development Co., that facili
 ### Contact Information
 
 For inquiries about the AxelarRelay smart contract, you can reach out to Nectar Development Co.
+
+## State Variables
+
+### Gas Service Interface
+
+Interface for the Axelar gas service, providing gas-related functionality.
+
+```solidity
+IAxelarGasService public immutable gasService;
+Interface for the Axelar gas service, providing gas-related functionality.
+```
+
+### Position Manager Interface
+
+Interface for the Position Manager contract, allowing interaction with position-related functions.
+
+```solidity
+IPositionManager public immutable positionManager;
+```
+
+### Hedge Interface
+
+Interface for the Hedge contract, facilitating interaction with Hedge-specific functions.
+
+```solidity
+IHedge public hedgeInterface;
+```
+
+### Hedge and Position Manager Addresses
+
+Addresses of the Hedge and Position Manager contracts.
+
+```solidity
+address public immutable hedge;
+address public immutable positionManagerAddress;
+```
+
+## Modifiers
+
+### Only Hedge Modifier
+
+Ensures that a function can only be called by the Hedge contract.
+
+```solidity
+modifier onlyHedge {
+    require(msg.sender == hedge, "Hedge only");
+    _;
+}
+```
+
+### Only Position Manager Modifier
+
+Ensures that a function can only be called by the Position Manager contract.
+
+```solidity
+modifier onlyPositionManager {
+    require(msg.sender == positionManagerAddress, "Position Manager only");
+    _;
+}
+```
+
+## Functions
+
+### Constructor
+
+Initializes the AxelarRelay contract with required parameters, including the Axelar Gateway, gas service, Hedge, and Position Manager addresses.
+
+```solidity
+constructor(
+    address gateway_,
+    address gasReceiver_,
+    address _hedge,
+    address _positionManagerAddress
+) AxelarExpressExecutable(gateway_) {
+    // constructor logic
+}
+```
+
+## Write Functions
+
+### Add Collateral and Place Short
+
+Allows the Hedge contract to add collateral and place a short position on another chain using the Axelar Express Executable.
+
+```solidity
+function addCollateralPlaceShort(
+    string memory destinationChain,
+    string memory destinationAddress,
+    uint256 collateralBalance,
+    string memory symbol,
+    uint256 toTarget
+) external payable onlyHedge {
+    // function logic
+}
+```
+
+### Add Collateral and Sell Short
+
+Allows the Hedge contract to add collateral and sell a short position on another chain using the Axelar Express Executable.
+
+```solidity
+function addCollateralSellShort(
+    string memory destinationChain,
+    string memory destinationAddress,
+    uint256 collateralNeeded,
+    string memory symbol,
+    uint256 toTarget
+) external payable onlyHedge {
+    // function logic
+}
+```
+
+### Remove Collateral and Place Short
+
+Allows the Hedge contract to remove collateral and adjust a short position on another chain using the Axelar Express Executable.
+
+```solidity
+function removeCollateralPlaceShort(
+    string memory destinationChain,
+    string memory destinationAddress,
+    uint256 collateralBalance,
+    string memory symbol,
+    uint256 toTarget
+) external payable onlyHedge {
+    // function logic
+}
+```
+
+### Remove Collateral and Sell Short
+
+Allows the Hedge contract to remove collateral and sell a short position on another chain using the Axelar Express Executable.
+
+```solidity
+function removeCollateralSellShort(
+    string memory destinationChain,
+    string memory destinationAddress,
+    uint256 collateralNeeded,
+    uint256 toTarget
+) external payable onlyHedge {
+    // function logic
+}
+```
+
+## Internal Functions
+
+### Execute With Token
+
+Internal function override to execute transactions involving x-chain transfers with a specific token.
+
+```solidity
+function _executeWithToken(
+    string calldata,
+    string calldata,
+    bytes calldata payload,
+    string calldata tokenSymbol,
+    uint256 amount
+) internal override {
+    // function logic
+}
+```
+
+### Execute
+
+Internal function override to execute x-chain contract calls without token transfers.
+
+```solidity
+function _execute(
+    string calldata,
+    string calldata,
+    bytes calldata payload
+) internal override {
+    // function logic
+}
+```

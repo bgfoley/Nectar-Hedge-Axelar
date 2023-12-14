@@ -17,8 +17,7 @@ import { IERC20 } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interf
 import { IAxelarGasService } from '@axelar-network/axelar-gmp-sdk-solidity/contracts/interfaces/IAxelarGasService.sol';
 import { IPositionManager } from './interfaces/IPositionManager.sol';
 import { IHedge } from './interfaces/IHedge.sol';
-// import { IPerpsV2ExchangeRate, IPyth } from 'contracts/interfaces/Synthetix/IPerpsV2ExchangeRate.sol';
-// May be able to bypass Kwenta through IPerpsV2 import { IAcounts } from 'Hedge/src/contracts/interfaces/IAccount.sol;';
+
 
 /// @notice the Axelar Relay facilitates cross chain transfers and message passing for Nectar products
 contract AxelarRelay is AxelarExpressExecutable {
@@ -27,7 +26,6 @@ contract AxelarRelay is AxelarExpressExecutable {
 //////==================//////////////////////////===================//////
                        ////      STATE       ////
 //////================//////////////////////////=====================//////   
-
 
     // Gas service interface
     IAxelarGasService public immutable gasService;
@@ -40,33 +38,22 @@ contract AxelarRelay is AxelarExpressExecutable {
     // Position Manager Address
     address public immutable positionManagerAddress; 
 
-
-//////==================//////////////////////////===================//////
-                       ////      EVENTS      ////
-//////================//////////////////////////=====================//////   
-
-
-/// @dev need to add events
-
-
-
 //////==================//////////////////////////===================//////
                        ////     MODIFIERS    ////
 //////================//////////////////////////=====================//////   
 
-
-    // we can change this to onlyStrategy so other strategies can use AxelarRelay
-    // which will require further mods to codebase, but for now let's keep it simple
+    /// @Dev we can change this to onlyStrategy so other strategies can use AxelarRelay
     modifier onlyHedge {
          require(msg.sender == hedge, "Hedge only");
         _;
     }
-
+/*
     // May need for cross chain calls
     modifier onlySelf() {
         require(msg.sender == address(this), 'Function must be called by the same contract only');
         _;
     }
+*/
 
     //
     modifier onlyPositionManager {
@@ -74,11 +61,15 @@ contract AxelarRelay is AxelarExpressExecutable {
         _;
     }
 
-
 //////==================//////////////////////////===================//////
                        ////    CONSTRUCTOR   ////
 //////================//////////////////////////=====================//////   
 
+    /// @notice '''constructor''' is called once on contract deployment
+    /// @param gateway_ Axelar Gateway contract address
+    /// @param gasReceiver Axelar gas service pays for x-chain calls
+    /// @param _hedge Address of Hedge contract
+    /// @param _positionManagerAddress Address of Position Manager contract    
 
     constructor(
         address gateway_, 
@@ -90,25 +81,23 @@ contract AxelarRelay is AxelarExpressExecutable {
         hedge = _hedge;
         positionManagerAddress = _positionManagerAddress;
         positionManager = IPositionManager(_positionManagerAddress);
-        hedgeInterface = IHedge(_hedge);
-        
+        hedgeInterface = IHedge(_hedge);     
     }
-
-
-//////==================//////////////////////////===================//////
-                       //////     READ     //////
-//////================//////////////////////////=====================//////       
-
-
 
 //////==================//////////////////////////===================//////
                        //////     WRITE    //////
 //////================//////////////////////////=====================//////   
 
-
-    // @notice 
+    /// @notice '''addCollateralPlaceShort''' takes Frax and sends it x-chain
+    /// through AxelarExpressExecutable and calls PositionManager contract
+    /// @param destinationChain is the name of home network to perp dex
+    /// @param destinationAddress is address of the PositionManager contract
+    /// @param collateralBalance is the total collateral balance on Fraxlend
+    /// Position Manager uses it to determine positionSize of short
+    /// @param symbol is the symbol of the token being transferred, which is
+    /// required by Axelar for x-chain transfer
+    /// @param toTarget is the amount of stablecoin to add as collateral   
     function addCollateralPlaceShort(
-        
         // string values passed by Hedge
         string memory destinationChain,
         string memory destinationAddress,
@@ -134,7 +123,15 @@ contract AxelarRelay is AxelarExpressExecutable {
         );
         gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, toTarget);
     }
-
+    /// @notice '''addCollateralSellShort''' takes Frax and sends it x-chain
+    /// through AxelarExpressExecutable and calls PositionManager contract
+    /// @param destinationChain is the name of home network to perp dex
+    /// @param destinationAddress is address of the PositionManager contract
+    /// @param collateralNeeded is the dollar value of short that needs to be
+    /// sold and transfered back to Fraxlend
+    /// @param symbol is the symbol of the token being transferred, which is
+    /// required by Axelar for x-chain transfer
+    /// @param toTarget is the amount of stablecoin to add as collateral   
     function addCollateralSellShort(
         // string values passed by Hedge
         string memory destinationChain,
@@ -161,7 +158,16 @@ contract AxelarRelay is AxelarExpressExecutable {
         );
         gateway.callContractWithToken(destinationChain, destinationAddress, payload, symbol, toTarget);
     }
-
+    
+    /// @notice '''removeCollateralPlaceShort''' takes Frax and sends it x-chain
+    /// through AxelarExpressExecutable and calls PositionManager contract
+    /// @param destinationChain is the name of home network to perp dex
+    /// @param destinationAddress is address of the PositionManager contract
+    /// @param collateralBalance is the total collateral balance on Fraxlend
+    /// Position Manager uses it to determine and adjust positionSize of short
+    /// @param symbol is the symbol of the token being transferred, which is
+    /// required by Axelar for x-chain transfer
+    /// @param toTarget is the amount of stablecoin to remove as collateral   
     function removeCollateralPlaceShort(
     // string values passed by Hedge
         string memory destinationChain,
@@ -189,6 +195,13 @@ contract AxelarRelay is AxelarExpressExecutable {
         gateway.callContract(destinationChain, destinationAddress, payload);
     }
 
+    /// @notice '''removeCollateralSellShort''' takes Frax and sends it x-chain
+    /// through AxelarExpressExecutable and calls PositionManager contract
+    /// @param destinationChain is the name of home network to perp dex
+    /// @param destinationAddress is address of the PositionManager contract
+    /// @param collateralNeeded is the dollar value of short that needs to be
+    /// sold and transfered back to Fraxlend
+    /// @param toTarget is the amount of stablecoin to remove as collateral 
     function removeCollateralSellShort(
         
         // string values passed by Hedge
@@ -211,7 +224,7 @@ contract AxelarRelay is AxelarExpressExecutable {
         gateway.callContract(destinationChain, destinationAddress, payload);      
     } 
   
-    // Override AxelarExecutable to complete transaction
+    /// @notice Override AxelarExecutable to complete transactions w/ x-chain transfers
     function _executeWithToken(
         string calldata,
         string calldata,
@@ -235,7 +248,7 @@ contract AxelarRelay is AxelarExpressExecutable {
 
 
     /// @notice internal override of Axelar Express Executable
-    /// to complete the sellShort functions
+    /// to complete x-chain contract calls, w/out token transfer
     function _execute(
         string calldata,
         string calldata,
@@ -253,31 +266,3 @@ contract AxelarRelay is AxelarExpressExecutable {
     }
 }
 
-/*
-
-
-    // init commands and inputs
-    IAccount.Command[] memory commands = new IAccount.Command[](3);
-    bytes[] memory inputs = new bytes[](3);
-
-    // define commands
-    commands[0] = IAccount.Command.ACCOUNT_MODIFY_MARGIN;
-    commands[1] = IAccount.Command.PERPS_V2_MODIFY_MARGIN;
-    commands[6] = IAccount.Command.PERPS_V2_SUBMIT_OFFCHAIN_DELAYED_ORDER;
-
-    // define inputs
-    inputs[0] = abi.encode(AMOUNT);
-    inputs[1] = abi.encode(market, marginDelta);
-    inputs[6] = abi.encode(market, sizeDelta, desiredFillPrice);
-
-    // execute commands w/ inputs
-    account.execute(commands, inputs);
-
-    // delayed off-chain order details
-    address market = getMarketAddressFromKey(sETHPERP);
-    int256 marginDelta = int256(AMOUNT) / 10;
-    int256 sizeDelta = 1 ether;
-    (uint256 desiredFillPrice,) =
-    IPerpsV2MarketConsolidated(market).assetPrice();
-
-    */
