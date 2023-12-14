@@ -42,7 +42,7 @@ contract AxelarRelay is AxelarExpressExecutable {
                        ////     MODIFIERS    ////
 //////================//////////////////////////=====================//////   
 
-    /// @Dev we can change this to onlyStrategy so other strategies can use AxelarRelay
+    /// @notice only Hedge can call this function
     modifier onlyHedge {
          require(msg.sender == hedge, "Hedge only");
         _;
@@ -67,7 +67,7 @@ contract AxelarRelay is AxelarExpressExecutable {
 
     /// @notice '''constructor''' is called once on contract deployment
     /// @param gateway_ Axelar Gateway contract address
-    /// @param gasReceiver Axelar gas service pays for x-chain calls
+    /// @param gasReceiver_ Axelar gas service pays for x-chain calls
     /// @param _hedge Address of Hedge contract
     /// @param _positionManagerAddress Address of Position Manager contract    
 

@@ -194,6 +194,17 @@ contract Hedge is ReentrancyGuard {
         return _sfrxEthBalance;
     }
 
+    /// @notice '''isSolvent''' returns a boolian representing Hedge's solvency 
+    /// returns true if there is enough sfrxEth to cover the TVL
+    function isSolvent() public view returns (bool) {
+        // check Hedge's solvency
+        if (collateralValue >= totalValueLocked){
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
 //////==================//////////////////////////===================//////
                        //////     WRITE    //////
 //////================//////////////////////////=====================//////
@@ -205,11 +216,7 @@ contract Hedge is ReentrancyGuard {
     /// @dev maybe a chron bot to trigger this every 15 min or so
     function _balanceHedge() public onlyBalancer {
         // Check Hedge's solvency
-        if (collateralValue >= totalValueLocked) {
-  /*      
-            // Calculate the target loan size for 1:3 Ltv
-            uint256 targetBorrowAmount = (totalValueLocked) / (3 * 1e18);      
-  */      
+        if (isSolvent()) {
             // If loan size is too small, borrow more and send to short position collateral
             if (targetBorrowAmount > totalBorrowed) {
                 uint256 toTarget = targetBorrowAmount -  totalBorrowed;
@@ -250,10 +257,7 @@ contract Hedge is ReentrancyGuard {
 
             // Calculate amount needed to make Hedge solvent
             uint256 collateralNeeded = totalValueLocked - collateralValue;
-/*
-            // Calculate the target loan size for 1:3 Ltv
-            uint256 targetBorrowAmount = (totalValueLocked) / (3 * 1e18);      
- */       
+
             // Check loan size, if too small, borrow more and send to short position collateral
             if (targetBorrowAmount > totalBorrowed) {
                 uint256 toTarget = targetBorrowAmount -  totalBorrowed;
@@ -292,13 +296,6 @@ contract Hedge is ReentrancyGuard {
         // Emit HedgeBalanced event
         emit HedgeBalanced(totalBorrowed); 
     }
-/*  /// @dev consider making balanceHedge public with onlyBalancer or similar modifier - need to determine whether it's a security issue
-    /// @notice '''balanceHedge''' is an external function to trigger _balanceHedge
-    /// @dev calls _balanceHedge and passes current collateralBalance as argument
-    function balanceHedge() external nonReentrant {
-        _balanceHedge(collateralBalance);
-    }
-*/
 
     /// @notice '''_deposit''' function is the internal implimentation of the deposit function
     /// @dev Caller must '''ERC20.approve''' the token (sfrxEth) before calling the function
